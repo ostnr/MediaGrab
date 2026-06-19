@@ -140,6 +140,7 @@ function extractMedias(tweets) {
         return {
             type,
             url,
+            mediaKey: media.media_key,
             readableFilename: media.readableFilename,
             tweetId: media.tweetId,
             referencedBy: media.referencedBy

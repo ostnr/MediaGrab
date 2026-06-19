@@ -57,10 +57,10 @@
 
             if (parents.length > 0) {
                 const medias = extractMedias(parents);
-                const existing = JSON.parse(sessionStorage.getItem('rectifying@gmail.com') || '[]');
+                const existing = JSON.parse(sessionStorage.getItem('MediaGrab') || '[]');
 
                 const updated = deduplicateMedia(existing, medias)
-                sessionStorage.setItem('rectifying@gmail.com', JSON.stringify(updated));
+                sessionStorage.setItem('MediaGrab', JSON.stringify(updated));
 
             }
         } catch (e) {
@@ -71,17 +71,20 @@
     //avoiding duplicates in session storage during multiple intercepted calls (reopening the same media)
     function deduplicateMedia(existing, incoming) {
 
-        //map new session storage objects
-        //using video/media url as unique keys to avoid duplication
-        const seenUrls = new Set(existing.map(m => m.url || m.video?.variants?.[0]?.url));
-        const unique = incoming.filter(m => {
-            const key = m.url || m.video?.variants?.[0]?.url;
-            if (seenUrls.has(key)) return false;
-            seenUrls.add(key);
-            return true;
-        });
+        //Twitter serves the same media across several responses (timeline, TweetDetail,
+        //modal) with slightly different variant urls (e.g. different ?tag=). Deduplicating
+        //on the resolved url therefore lets the same clip slip in multiple times, which made
+        //a single download produce several files (some pointing at a stale/lower quality
+        //variant). media_key is stable across all responses, so use it as the primary key
+        //and only fall back to the url when it is missing.
+        const keyOf = m => m.mediaKey || m.url || m.video?.variants?.[0]?.url;
 
-        return existing.concat(unique);
+        //newest occurrence wins so the freshest variant url replaces any stale one
+        const byKey = new Map();
+        for (const m of existing) byKey.set(keyOf(m), m);
+        for (const m of incoming) byKey.set(keyOf(m), m);
+
+        return [...byKey.values()];
     }
 
 

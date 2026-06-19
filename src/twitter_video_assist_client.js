@@ -187,16 +187,24 @@ async function downloadMediaObject(event) {
 
     const tweet = $(event.currentTarget).closest(tweetSelector)
 
-    const sessionData = JSON.parse(sessionStorage.getItem('rectifying@gmail.com') || '[]');
+    const sessionData = JSON.parse(sessionStorage.getItem('MediaGrab') || '[]');
 
     const mainTweetId = extractMainTweetId(tweet);
 
-    const relatedMedia = sessionData.filter(media => 
-        media.tweetId === mainTweetId || 
+    const relatedMedia = sessionData.filter(media =>
+        media.tweetId === mainTweetId ||
         media.referencedBy === mainTweetId
     );
 
+    //guard against duplicate entries that may still have accumulated in session storage so
+    //a single click never downloads the same media more than once
+    const sent = new Set();
     relatedMedia.forEach(media => {
+        const key = media.mediaKey || media.url;
+        if (sent.has(key)) {
+            return;
+        }
+        sent.add(key);
         browser.runtime.sendMessage(media);
     });
 }
@@ -349,12 +357,12 @@ function isVideoDownloadButton(target) {
 browser.runtime.onMessage.addListener((message) => {
     if (message.type === 'UPDATE_SESSION_DATA') {
 
-        const currentData = JSON.parse(sessionStorage.getItem('rectifying@gmail.com') || '[]');
+        const currentData = JSON.parse(sessionStorage.getItem('MediaGrab') || '[]');
         const mergedArray = [...currentData, ...message.data];
-        sessionStorage.setItem('rectifying@gmail.com', JSON.stringify(mergedArray))
+        sessionStorage.setItem('MediaGrab', JSON.stringify(mergedArray))
     }
 });
 
 window.addEventListener('pageshow', function (event) {
-    sessionStorage.removeItem('rectifying@gmail.com');
+    sessionStorage.removeItem('MediaGrab');
 });

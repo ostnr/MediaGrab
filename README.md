@@ -1,21 +1,28 @@
-# Twitter Media Assist
+# MediaGrab
 
-For your better Twitter media experience.
+Download photos, videos and GIFs from X (Twitter) posts — straight from a button
+next to the post actions.
 
-## Firefox Version
+This is a maintained fork of [Twitter Media Assist](https://github.com/Flkalas/TwitterMediaAssist)
+by Flkalas, which is no longer actively developed. Licensed under MIT (see
+[LICENSE](LICENSE)).
 
-<https://addons.mozilla.org/en-US/firefox/addon/twitter-media-assist-ff>
+## Install (Firefox, temporary / development)
 
-## Chrome Version
+1. Open `about:debugging` in Firefox.
+2. Click **This Firefox** → **Load Temporary Add-on…**
+3. Select `src/manifest.json` from this repo.
 
-<https://chrome.google.com/webstore/detail/twitter-media-assist/cledppeceojodgghbbkaciochldmpdfk>
+The add-on stays loaded until Firefox is closed. For a permanent install, build and
+sign an XPI with [`web-ext`](https://extensionworkshop.com/documentation/develop/web-ext-command-reference/).
 
-#### Privacy Policy for Chrome Web Store
+## Privacy
 
-This product parse your Twitter web page. But this product does not collect any user data. This product has no server and database. All process run on your machine.
+MediaGrab parses the X (Twitter) web page locally in your browser. It does not collect
+any user data and has no server or database — everything runs on your machine.
 
-### Previous version of Twitter Video Assist For Chrome
+## Credits
 
-<https://github.com/Flkalas/TwitterVideoAssistChrome>
-
-<https://github.com/Flkalas/M2G>
+- Original project: [Flkalas/TwitterMediaAssist](https://github.com/Flkalas/TwitterMediaAssist)
+- Earlier predecessors: [TwitterVideoAssistChrome](https://github.com/Flkalas/TwitterVideoAssistChrome),
+  [M2G](https://github.com/Flkalas/M2G)
