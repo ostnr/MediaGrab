@@ -34,7 +34,6 @@ function convertGif(url, readableFilename) {
     video.crossOrigin = "use-credentials"
     video.playbackRate = PLAY_SPEED_RATE
     video.preload = "auto"
-    video.innerHTML = '<source src="' + video.src + '" type="video/mp4 preload="metadata" />'
 
     video.oncanplaythrough = processVideo(canvas, context, video, worker)
 }
