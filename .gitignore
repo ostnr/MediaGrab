@@ -3,6 +3,7 @@
 # Lokale Planungs-/Notiz-/Vorbereitungs-Dateien, nicht Teil des Repos
 plan.md
 STORE_LISTING.md
+CLAUDE.md
 
 # web-ext Build-Artefakte
 web-ext-artifacts/
