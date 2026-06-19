@@ -19,10 +19,7 @@
     "*://video.twimg.com/*",
     "storage",
     "downloads",
-    "tabs",
-    "webRequest",
-    "scripting",
-    "webRequestBlocking"
+    "tabs"
   ],
   "icons": {
     "16": "icon_bitty.png",

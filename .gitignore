@@ -1,7 +1,8 @@
 *.zip
 
-# Lokale Planungs-/Notizdatei, nicht Teil des Repos
+# Lokale Planungs-/Notiz-/Vorbereitungs-Dateien, nicht Teil des Repos
 plan.md
+STORE_LISTING.md
 
 # web-ext Build-Artefakte
 web-ext-artifacts/

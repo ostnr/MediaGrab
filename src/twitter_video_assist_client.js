@@ -192,17 +192,6 @@ function injectDownloadButton(target) {
     $(favIcon).siblings(".tva_download_action").find('button.tva_js_download').click('.tweet', downloadMediaObject)
 }
 
-function indexOfMedia(selector, originalIndex, totalCount) {
-    if (selector === modalCalss) {
-        const splited = window.location.pathname.split('/')
-
-        return Number(splited[splited.length - 1]);
-    } else if (totalCount === 1) {
-        return 0;
-    }
-    return originalIndex + 1;
-}
-
 async function downloadMediaObject(event) {
 
     event.stopPropagation()
@@ -232,85 +221,6 @@ async function downloadMediaObject(event) {
         sent.add(key);
         browser.runtime.sendMessage(media);
     });
-}
-
-async function downloadVideoObject(tweet, tweetSelector, videoTags) {
-    videoTags.map(async (element, index) => {
-        var videoSource = element.src
-        if (!videoSource) {
-            videoSource = tweet.find('source')[0].src
-        }
-
-        let url = null
-        if (videoSource.includes('blob')) {
-            url = await extractGraphQlMp4Video(getTweetId(tweet, tweetSelector), getCookie("ct0"), index)
-        }
-
-        const videoIndex = indexOfMedia(tweetSelector, index, videoTags.length)
-        browser.runtime.sendMessage({
-            type: 'video',
-            videoSource: url || videoSource,
-            tweetId: getTweetId(tweet, tweetSelector),
-            readableFilename: generateReadableFilename(tweet, tweetSelector, videoIndex),
-            tweetSelector: tweetSelector,
-            token: getCookie("ct0")
-        })
-    })
-}
-
-function downloadImageObject(tweet, tweetSelector, imageTags) {
-    imageTags.map((element, index) => {
-        const src = refineImageSourceParams(element.src)
-        const imageIndex = indexOfMedia(tweetSelector, index, imageTags.length)
-        const readableFilename = generateReadableFilename(tweet, tweetSelector, imageIndex)
-        processImageDownload(src, readableFilename)
-    })
-}
-
-
-function generateReadableFilename(tweet, selector, imageIndex) {
-    if (!!imageIndex) {
-        return `${getTweetOwner(tweet, selector)}-${getTweetId(tweet, selector)}-${imageIndex}`
-    } else {
-        return `${getTweetOwner(tweet, selector)}-${getTweetId(tweet, selector)}`
-    }
-}
-
-function getTweetOwner(tweet, selector) {
-    const re = /(?:https:\/\/[A-z.]*\/(\w*)\/status\/)(?:\d*)(?:\/?\w*)/g
-    return getTweetData(tweet, selector, re)
-}
-
-function getTweetId(tweet, selector) {
-    const re = /(?:https:\/\/[A-z.]*\/\w*\/status\/)(\d*)(?:\/?\w*)/g
-    return getTweetData(tweet, selector, re)
-}
-
-function getTweetIndex(statusUrl) {
-    const re = /(?:https:\/\/[A-z.]*\/\w*\/status\/)(?:\d*\/?\w*\/)(\d)/g
-    const match = re.exec(statusUrl)
-    if (match) {
-        return match[1]
-    }
-    return 0
-}
-
-function getTweetData(tweet, selector, re) {
-    if (selector === '.tweet') {
-        return tweet.data("tweet-id")
-    } else if (selector === 'article') {
-        for (const element of tweet.find('a').toArray()) {
-            const match = re.exec(element.href)
-            if (match) {
-                return match[1]
-            }
-        }
-    } else if (selector === modalCalss) {
-        const match = re.exec(window.location.href)
-        if (match) {
-            return match[1]
-        }
-    }
 }
 
 function extractMainTweetId(articleElem) {

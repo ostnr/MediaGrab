@@ -7,6 +7,14 @@ This is a maintained fork of [Twitter Media Assist](https://github.com/Flkalas/T
 by Flkalas, which is no longer actively developed. Licensed under MIT (see
 [LICENSE](LICENSE)).
 
+## Browser support
+
+- **Firefox** — developed and tested here. This is the supported target.
+- **Chrome / Chromium** — **not tested yet.** The extension is Manifest V2, which
+  Chrome no longer accepts for new submissions, so a Chrome build would likely need
+  a Manifest V3 migration in addition to testing. If someone wants it on Chrome,
+  contributions / issues are welcome — otherwise it stays Firefox-only for now.
+
 ## Install (Firefox, temporary / development)
 
 1. Open `about:debugging` in Firefox.
