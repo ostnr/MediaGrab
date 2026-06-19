@@ -3,6 +3,8 @@
   "name": "MediaGrab",
   "description": "Download photos, videos and GIFs from X (Twitter) posts.",
   "version": "4.0.0",
+  "author": "ostnr",
+  "homepage_url": "https://github.com/ostnr/MediaGrab",
   "browser_specific_settings": {
     "gecko": {
       "id": "mediagrab@ostnr.github.io"

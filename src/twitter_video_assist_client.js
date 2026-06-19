@@ -81,23 +81,71 @@ function analysisDom(content) {
     }
 }
 
-function injectReactModalDownloadButton(modal) {
-    if (modal.find('div[role="group"] div.tva-modal-download-icon').length) {
+// The action bar is the role="group" that holds the reply/retweet/like buttons.
+// Picking it by testid is far more robust than relying on "the last group", which
+// breaks on quoted tweets, cards and other nested groups.
+function findActionBar(scope) {
+    const groups = $(scope).find('div[role="group"]')
+    const actionTestids = 'button[data-testid="reply"], button[data-testid="retweet"], button[data-testid="unretweet"], button[data-testid="like"], button[data-testid="unlike"], button[data-testid="bookmark"]'
+
+    for (const groupElement of groups.toArray()) {
+        const group = $(groupElement)
+        if (group.find(actionTestids).length) {
+            return group
+        }
+    }
+    return $()
+}
+
+// Build our download button by cloning a real X action item, so we inherit X's
+// exact markup and CSS classes instead of hardcoding class names that rot on every
+// redesign. The original (template) is never mutated, which keeps the neighbouring
+// buttons (reply/retweet/like/share) intact.
+function buildDownloadButton(templateItem, tweetSelector) {
+    const download = templateItem.clone()
+    download.addClass('tva-download-icon')
+
+    // drop any like/retweet counters carried over from the template
+    download.find('span').remove()
+
+    const button = download.find('button')
+    button.removeAttr('aria-disabled').removeAttr('disabled')
+    button.attr('data-testid', 'download').attr('aria-label', 'Media Download')
+    download.children('div:first-child').attr('aria-label', 'Media Download')
+
+    const svg = download.find('svg').first()
+    svg.attr('viewBox', '0 0 24 24').html(downloadIcon)
+
+    // pass the selector as jQuery event data (read back as event.data)
+    download.click(tweetSelector, downloadMediaObject)
+
+    return download
+}
+
+function injectActionBarDownloadButton(scope, tweetSelector, markerClass) {
+    const group = findActionBar(scope)
+    if (!group.length || group.find('.tva-download-icon').length) {
         return
     }
 
-    var icon = modal.find('div[role="group"] div:nth-child(4)')
+    const items = group.children('div')
+    const template = items.first()
+    if (!template.length) {
+        return
+    }
 
-    icon.after(icon.clone())
+    const download = buildDownloadButton(template, tweetSelector)
+    if (markerClass) {
+        download.addClass(markerClass)
+    }
 
-    var download = icon.next()
-    download.addClass('tva-modal-download-icon')
-    download.children('div:first-child').data('testid', 'download')
-    download.children('div:first-child').attr('aria-label', 'Media Download')
-    download.find('svg').html(downloadIcon)
-    download.click(modalCalss, downloadMediaObject)
+    // insert before the last action item so the existing buttons keep their
+    // layout and our icon simply joins the evenly-spaced row
+    items.last().before(download)
+}
 
-    icon.attr('class', icon.prev().attr('class'))
+function injectReactModalDownloadButton(modal) {
+    injectActionBarDownloadButton(modal, modalCalss, 'tva-modal-download-icon')
 }
 
 function removeStatIcon(content) {
@@ -126,30 +174,7 @@ function injectReactDownloadButton(target) {
         return
     }
 
-    if (tweet.find('div[role="group"] div.tva-download-icon').length) {
-        return
-    }
-
-    const iconsGroups = tweet.find('div[role="group"]')
-    const lastIcon = $(iconsGroups[iconsGroups.length - 1]).children('div:last-child')
-    const download = lastIcon.clone()
-    lastIcon.addClass('r-13awgt0 r-18u37iz r-1h0z5md')
-
-    download.addClass('tva-download-icon')
-    download.children('div:first-child').data('testid', 'download')
-    download.children('div:first-child').attr('aria-label', 'Media Download')
-    download.find('svg').html(downloadIcon)
-    download.click('article', downloadMediaObject)
-
-    const button = download.find('div > button');
-    if (button) {
-        button.removeAttr('aria-disabled');
-        button.removeAttr('disabled');
-        button.removeClass();
-        button.addClass("css-175oi2r r-1777fci r-bt1l66 r-bztko3 r-lrvibr r-1loqt21 r-1ny4l3l")
-    }
-    
-    lastIcon.after(download)
+    injectActionBarDownloadButton(tweet, 'article')
 }
 
 function injectDownloadButton(target) {
