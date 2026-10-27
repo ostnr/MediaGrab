@@ -77,7 +77,12 @@
         //a single download produce several files (some pointing at a stale/lower quality
         //variant). media_key is stable across all responses, so use it as the primary key
         //and only fall back to the url when it is missing.
-        const keyOf = m => m.mediaKey || m.url || m.video?.variants?.[0]?.url;
+        //media_key alone is not enough though: a reposted clip (shared via its /video/1 link)
+        //keeps the original media_key in every post that reuses it, and a quoted post shows up
+        //once per quoting post. Keying on media_key only let the last of those overwrite the
+        //others, so the button on the original post found nothing to download. Scope the key
+        //to the post (and the quoting post) it was seen in.
+        const keyOf = m => [m.tweetId, m.referencedBy, m.mediaKey || m.url || m.video?.variants?.[0]?.url].join('|');
 
         //newest occurrence wins so the freshest variant url replaces any stale one
         const byKey = new Map();
