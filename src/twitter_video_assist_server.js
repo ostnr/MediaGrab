@@ -1,12 +1,21 @@
-let workerSpace = {}
+// Background message router. Runs as a service worker in Chrome (no DOM) and as an
+// event page in Firefox — written to the SW constraints so it works in both.
+// GIF→animated-GIF conversion needs video/canvas, so the SW fetches the
+// source bytes and hands them to the content script, which encodes the GIF
+// and sends the result back for download.
 
-const CAPTURE_INTERVAL = 33
-const PLAY_SPEED_RATE = 2.0
-const filenameRegex = /([\w,\s-.]+\.[A-Za-z]{2,4}$)/
+let activeGifConversions = 0
+
+const X_TAB_URLS = [
+    '*://*.twitter.com/*',
+    '*://twitter.com/*',
+    '*://*.x.com/*',
+    '*://x.com/*',
+]
 
 browser.runtime.onMessage.addListener(processRequest)
 
-function processRequest(request) {
+function processRequest(request, sender) {
     switch (request.type) {
         case 'video':
             downloadMp4Video(request)
@@ -17,115 +26,111 @@ function processRequest(request) {
             break
 
         case 'gif':
-            processGifVideo(request)
+            processGifVideo(request, sender)
+            break
+
+        case 'GIF_CONVERTED':
+            saveConvertedGif(request)
+            finishGifConversion()
+            break
+
+        case 'GIF_CONVERT_FAILED':
+            console.warn('[MediaGrab] GIF conversion failed:', request.error)
+            finishGifConversion()
+            break
     }
 }
 
-function convertGif(url, readableFilename) {
-    sendSpinnerStateMessage(false)
+function processGifVideo({ url, readableFilename }, sender) {
+    browser.storage.sync.get({
+        isConvertGIF: true,
+        isSaveMP4: true,
+    }).then(async (items) => {
+        if (items.isSaveMP4) {
+            downloadMp4Video({ url, readableFilename })
+        }
 
-    var filename = url.substring(url.lastIndexOf('/') + 1).split(".")[0]
-    var worker = createWorker(filename, readableFilename)
-    var canvas = document.createElement('canvas')
-    var context = canvas.getContext('2d')
-    var video = document.createElement('video')
+        if (!items.isConvertGIF) {
+            return
+        }
 
-    video.src = url
-    video.crossOrigin = "use-credentials"
-    video.playbackRate = PLAY_SPEED_RATE
-    video.preload = "auto"
+        const tabId = sender.tab?.id
+        if (tabId == null) {
+            console.warn('[MediaGrab] No tab for GIF conversion')
+            return
+        }
 
-    video.oncanplaythrough = processVideo(canvas, context, video, worker)
+        beginGifConversion()
+
+        try {
+            const response = await fetch(url)
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`)
+            }
+            const buffer = await response.arrayBuffer()
+            const filename = url.substring(url.lastIndexOf('/') + 1).split('.')[0]
+
+            await browser.tabs.sendMessage(tabId, {
+                type: 'CONVERT_GIF',
+                buffer,
+                filename,
+                readableFilename,
+            })
+        } catch (error) {
+            console.warn('[MediaGrab] GIF convert setup failed:', error)
+            finishGifConversion()
+        }
+    })
 }
 
-function createWorker(filename, readableFilename) {
-    workerSpace[filename] = new Worker('gif_converter.js')
-    workerSpace[filename].onmessage = processWorkerData(filename, readableFilename)
-    return workerSpace[filename]
-}
+function saveConvertedGif({ data, filename, readableFilename }) {
+    browser.storage.sync.get({
+        spcificPathName: false,
+        readableName: false,
+    }).then((items) => {
+        const u8Array = new Uint8Array(atob(data).split('').map((c) => c.charCodeAt(0)))
+        const blob = new Blob([u8Array], { type: 'image/gif' })
+        const objectUrl = URL.createObjectURL(blob)
 
-function processWorkerData(filename, readableFilename) {
-    return (event) => {
-        browser.storage.sync.get({
-            spcificPathName: false,
-            readableName: false
-        }).then((items) => {
-            var u8Array = new Uint8Array(atob(event.data).split("").map(function (c) {
-                return c.charCodeAt(0)
-            }))
-            var blob = new Blob([u8Array], {
-                type: 'image/gif'
-            })
-            var url = URL.createObjectURL(blob)
+        let downloadFilename = filename
+        if (items.readableName) {
+            downloadFilename = readableFilename
+        }
 
-            let downloadFilename = filename
-            if (items.readableName) {
-                downloadFilename = readableFilename
-            }
-
-            browser.downloads.download({
-                url: url,
-                saveAs: items.spcificPathName,
-                filename: downloadFilename + ".gif"
-            })
-            workerSpace[filename].terminate()
-            delete workerSpace[filename]
-            if (numberOfWorker() == 0) {
-                sendSpinnerStateMessage(true)
-            }
+        browser.downloads.download({
+            url: objectUrl,
+            saveAs: items.spcificPathName,
+            filename: downloadFilename + '.gif',
+        }).finally(() => {
+            // Revoke after the browser has had a chance to start the download.
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
         })
-    }
-}
-
-function processVideo(canvas, context, video, worker) {
-    return () => {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        captureVideo(context, video, worker)
-    }
-}
-
-async function captureVideo(context, video, worker) {
-    worker.postMessage({
-        delay: CAPTURE_INTERVAL * PLAY_SPEED_RATE,
-        w: video.videoWidth,
-        h: video.videoHeight
-    })
-
-    video.play()
-    while (!video.ended) {
-        draw(context, video, worker)
-        await sleep(CAPTURE_INTERVAL)
-    }
-
-    worker.postMessage({})
-}
-
-function draw(context, video, worker) {
-    context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight)
-    var imageData = context.getImageData(0, 0, video.videoWidth, video.videoHeight)
-    worker.postMessage({
-        frame: imageData
     })
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms))
+function beginGifConversion() {
+    activeGifConversions += 1
+    sendSpinnerStateMessage(false)
+}
+
+function finishGifConversion() {
+    activeGifConversions = Math.max(0, activeGifConversions - 1)
+    if (activeGifConversions === 0) {
+        sendSpinnerStateMessage(true)
+    }
 }
 
 function sendSpinnerStateMessage(hide) {
     browser.tabs.query({
         currentWindow: true,
-        url: ["*://*.twitter.com/*", "*://twitter.com/*"]
+        url: X_TAB_URLS,
     }).then((tabs) => {
-        for (var i in tabs) {
-            browser.tabs.sendMessage(tabs[i].id, {
-                hideSpinner: hide
+        for (const tab of tabs) {
+            browser.tabs.sendMessage(tab.id, {
+                hideSpinner: hide,
+            }).catch(() => {
+                // Tab may not have the content script (e.g. chrome:// pages filtered out already).
             })
         }
     })
-}
-
-function numberOfWorker() {
-    return Object.keys(workerSpace).length
 }

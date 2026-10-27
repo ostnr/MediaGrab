@@ -4,23 +4,244 @@
 <head>
 	<title>MediaGrab Options</title>
 	<meta charset="utf-8">
+	<style>
+		:root {
+			--brand: #4f46e5;
+			--brand-weak: #eef2ff;
+			--bg: #ffffff;
+			--card: #ffffff;
+			--text: #1f2330;
+			--muted: #6b7280;
+			--border: #e6e8ee;
+			--track: #d1d5db;
+		}
+
+		@media (prefers-color-scheme: dark) {
+			:root {
+				--brand: #818cf8;
+				--brand-weak: #2a2f45;
+				--bg: #15171e;
+				--card: #1d2029;
+				--text: #e8eaf0;
+				--muted: #9aa1b2;
+				--border: #2d313d;
+				--track: #3a3f4d;
+			}
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			padding: 24px 18px;
+			min-width: 360px;
+			font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+			background: var(--bg);
+			color: var(--text);
+			font-size: 14px;
+			line-height: 1.4;
+		}
+
+		.wrap {
+			max-width: 440px;
+			margin: 0 auto;
+		}
+
+		header {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			margin-bottom: 22px;
+		}
+
+		header img {
+			width: 40px;
+			height: 40px;
+			border-radius: 10px;
+		}
+
+		header h1 {
+			margin: 0;
+			font-size: 18px;
+			font-weight: 650;
+		}
+
+		header p {
+			margin: 2px 0 0;
+			font-size: 12.5px;
+			color: var(--muted);
+		}
+
+		.group {
+			background: var(--card);
+			border: 1px solid var(--border);
+			border-radius: 14px;
+			padding: 4px 16px;
+			margin-bottom: 16px;
+		}
+
+		.group h2 {
+			font-size: 11px;
+			font-weight: 600;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+			color: var(--muted);
+			margin: 16px 0 8px;
+		}
+
+		.row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 12px 0;
+			border-top: 1px solid var(--border);
+		}
+
+		.group h2 + .row {
+			border-top: none;
+		}
+
+		.row .label {
+			font-weight: 500;
+		}
+
+		.row .desc {
+			margin-top: 2px;
+			font-size: 12.5px;
+			color: var(--muted);
+		}
+
+		/* toggle switch */
+		.switch {
+			position: relative;
+			flex: 0 0 auto;
+			width: 40px;
+			height: 24px;
+		}
+
+		.switch input {
+			position: absolute;
+			opacity: 0;
+			width: 0;
+			height: 0;
+		}
+
+		.slider {
+			position: absolute;
+			inset: 0;
+			background: var(--track);
+			border-radius: 999px;
+			transition: background 0.18s ease;
+			cursor: pointer;
+		}
+
+		.slider::before {
+			content: "";
+			position: absolute;
+			top: 3px;
+			left: 3px;
+			width: 18px;
+			height: 18px;
+			background: #fff;
+			border-radius: 50%;
+			box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+			transition: transform 0.18s ease;
+		}
+
+		.switch input:checked + .slider {
+			background: var(--brand);
+		}
+
+		.switch input:checked + .slider::before {
+			transform: translateX(16px);
+		}
+
+		.switch input:focus-visible + .slider {
+			outline: 2px solid var(--brand);
+			outline-offset: 2px;
+		}
+
+		#status {
+			height: 18px;
+			text-align: center;
+			font-size: 12.5px;
+			color: var(--brand);
+			font-weight: 500;
+			margin-top: 4px;
+		}
+	</style>
 </head>
 
 <body>
-	<h3 style="margin:0 0 12px">MediaGrab</h3>
-	<label> - I want to specify download path and file name <input type="checkbox" id="specific">
-		<br> - I want to download readable file name <input type="checkbox" id="readable">
-		<br>
-		<br>
-	</label>
-	<label> - I want to save Twitter GIF as <input type="checkbox" id="gifasgif"> GIF, <input type="checkbox"
-			id="gifasmp4"> MP4. <br>
-	</label>
-	<p></p>
-	<label> - I want to hide view count <input type="checkbox" id="view_count"><br>
-	</label>
-	<p></p>
-	<div id="status" style="height: 16px">&nbsp</div>
+	<div class="wrap">
+		<header>
+			<img src="icon_medium.png" alt="MediaGrab">
+			<div>
+				<h1>MediaGrab</h1>
+				<p>Download photos, videos &amp; GIFs from X</p>
+			</div>
+		</header>
+
+		<section class="group">
+			<h2>File naming</h2>
+			<div class="row">
+				<div>
+					<div class="label">Choose path &amp; file name</div>
+					<div class="desc">Ask where to save each download.</div>
+				</div>
+				<label class="switch"><input type="checkbox" id="specific"><span class="slider"></span></label>
+			</div>
+			<div class="row">
+				<div>
+					<div class="label">Readable file names</div>
+					<div class="desc">Name files after the author and post.</div>
+				</div>
+				<label class="switch"><input type="checkbox" id="readable"><span class="slider"></span></label>
+			</div>
+		</section>
+
+		<section class="group">
+			<h2>GIF saving</h2>
+			<div class="row">
+				<div>
+					<div class="label">Save GIF as GIF</div>
+					<div class="desc">Convert the clip back into a real GIF.</div>
+				</div>
+				<label class="switch"><input type="checkbox" id="gifasgif"><span class="slider"></span></label>
+			</div>
+			<div class="row">
+				<div>
+					<div class="label">Save GIF as MP4</div>
+					<div class="desc">Keep the original MP4 video too.</div>
+				</div>
+				<label class="switch"><input type="checkbox" id="gifasmp4"><span class="slider"></span></label>
+			</div>
+		</section>
+
+		<section class="group">
+			<h2>Posts</h2>
+			<div class="row">
+				<div>
+					<div class="label">Hide view count</div>
+					<div class="desc">Remove the views stat from posts.</div>
+				</div>
+				<label class="switch"><input type="checkbox" id="view_count"><span class="slider"></span></label>
+			</div>
+			<div class="row">
+				<div>
+					<div class="label">Include quoted posts</div>
+					<div class="desc">Also download media from a quoted post.</div>
+				</div>
+				<label class="switch"><input type="checkbox" id="quoted_media"><span class="slider"></span></label>
+			</div>
+		</section>
+
+		<div id="status">&nbsp;</div>
+	</div>
+
 	<script src="browser-polyfill.min.js"></script>
 	<script src="options.js"></script>
 </body>

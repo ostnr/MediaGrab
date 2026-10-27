@@ -34,8 +34,14 @@ $(document).on({
     }
 }, ".tva-download-icon")
 
+const CAPTURE_INTERVAL = 33
+const PLAY_SPEED_RATE = 2.0
+
+// Active GIF encoders keyed by source filename (content-script side; SW has no DOM).
+let gifWorkerSpace = {}
+
 let hideViewCount = false
-browser.runtime.onMessage.addListener(processRequest)
+browser.runtime.onMessage.addListener(handleBackgroundMessage)
 browser.storage.sync.get({ hideViewCount: true }).then((items) => {
     hideViewCount = items.hideViewCount
 })
@@ -97,6 +103,44 @@ function findActionBar(scope) {
     return $()
 }
 
+// Prefer a non-disabled action item as the clone source. When comments are
+// disabled, the reply button (usually first) is greyed out via X's CSS; cloning
+// it made our download button look disabled even though it still worked.
+function pickTemplateItem(group) {
+    const items = group.children('div')
+    if (!items.length) {
+        return $()
+    }
+
+    // Only neutral (inactive) states — unlike/unretweet carry red/green accent
+    // colors that would make the download icon look "active".
+    const preferredTestids = ['like', 'retweet', 'bookmark']
+    for (const testid of preferredTestids) {
+        const button = group.find(`button[data-testid="${testid}"]`).get(0)
+        if (!button) {
+            continue
+        }
+        const item = items.filter((_i, el) => el.contains(button)).first()
+        if (item.length) {
+            return item
+        }
+    }
+
+    // Fall back to the first item whose button is not disabled.
+    for (const el of items.toArray()) {
+        const button = el.querySelector('button')
+        if (!button) {
+            continue
+        }
+        if (button.disabled || button.getAttribute('aria-disabled') === 'true') {
+            continue
+        }
+        return $(el)
+    }
+
+    return items.first()
+}
+
 // Build our download button by cloning a real X action item, so we inherit X's
 // exact markup and CSS classes instead of hardcoding class names that rot on every
 // redesign. The original (template) is never mutated, which keeps the neighbouring
@@ -109,9 +153,12 @@ function buildDownloadButton(templateItem, tweetSelector) {
     download.find('span').remove()
 
     const button = download.find('button')
-    button.removeAttr('aria-disabled').removeAttr('disabled')
+    // Strip disabled state thoroughly (attrs alone are not enough for some clones).
+    button.removeAttr('aria-disabled').removeAttr('disabled').removeAttr('tabindex')
+    button.prop('disabled', false)
     button.attr('data-testid', 'download').attr('aria-label', 'Media Download')
     download.children('div:first-child').attr('aria-label', 'Media Download')
+        .removeAttr('aria-disabled')
 
     const svg = download.find('svg').first()
     svg.attr('viewBox', '0 0 24 24').html(downloadIcon)
@@ -128,8 +175,7 @@ function injectActionBarDownloadButton(scope, tweetSelector, markerClass) {
         return
     }
 
-    const items = group.children('div')
-    const template = items.first()
+    const template = pickTemplateItem(group)
     if (!template.length) {
         return
     }
@@ -139,9 +185,25 @@ function injectActionBarDownloadButton(scope, tweetSelector, markerClass) {
         download.addClass(markerClass)
     }
 
-    // insert before the last action item so the existing buttons keep their
-    // layout and our icon simply joins the evenly-spaced row
-    items.last().before(download)
+    // Anchor our button right before the Share item so the order is identical
+    // for photos and videos. Inserting before "the last div" is unreliable: on
+    // video posts X renders an extra/non-div item in the bar, which pushed the
+    // last div back to bookmark and made our button land in a different spot.
+    const allItems = group.children()
+    const shareItem = allItems.filter((_i, el) => {
+        if (el.querySelector('button[data-testid="share"]')) {
+            return true
+        }
+        // case-insensitive aria-label match in plain JS: jQuery/Sizzle throws on
+        // the CSS `i` flag (e.g. [aria-label*="Share" i]), which would break the
+        // whole injection and remove the button entirely.
+        return Array.from(el.querySelectorAll('button')).some(button => {
+            const label = (button.getAttribute('aria-label') || '').toLowerCase()
+            return label.includes('share') || label.includes('teilen')
+        })
+    }).first()
+    const anchor = shareItem.length ? shareItem : allItems.last()
+    anchor.before(download)
 }
 
 function injectReactModalDownloadButton(modal) {
@@ -205,10 +267,19 @@ async function downloadMediaObject(event) {
 
     const mainTweetId = extractMainTweetId(tweet);
 
-    const relatedMedia = sessionData.filter(media =>
-        media.tweetId === mainTweetId ||
-        media.referencedBy === mainTweetId
-    );
+    // When a post quotes another post that also has media, the quoted media is
+    // tagged with `referencedBy === mainTweetId`.
+    const { downloadQuotedMedia } = await browser.storage.sync.get({ downloadQuotedMedia: false });
+
+    const ownMedia = sessionData.filter(media => media.tweetId === mainTweetId);
+    const quotedMedia = sessionData.filter(media => media.referencedBy === mainTweetId);
+
+    // The "downloadQuotedMedia" option only governs grabbing the quoted media *in
+    // addition to* the post's own media. When the post has no media of its own (a
+    // pure quote-tweet), the quoted media is the only thing to download, so we
+    // always include it — otherwise the button would silently do nothing.
+    const includeQuoted = downloadQuotedMedia || ownMedia.length === 0;
+    const relatedMedia = includeQuoted ? [...ownMedia, ...quotedMedia] : ownMedia;
 
     //guard against duplicate entries that may still have accumulated in session storage so
     //a single click never downloads the same media more than once
@@ -237,8 +308,124 @@ function extractMainTweetId(articleElem) {
     return null;
   }
   
-function processRequest(request) {
-    toggleReactProgressPopup(request)
+function handleBackgroundMessage(request) {
+    if (request.type === 'CONVERT_GIF') {
+        convertGifFromBuffer(request)
+        return
+    }
+
+    if (request.type === 'UPDATE_SESSION_DATA') {
+        const currentData = JSON.parse(sessionStorage.getItem('MediaGrab') || '[]')
+        const mergedArray = [...currentData, ...request.data]
+        sessionStorage.setItem('MediaGrab', JSON.stringify(mergedArray))
+        return
+    }
+
+    if (request.hideSpinner !== undefined) {
+        toggleReactProgressPopup(request)
+    }
+}
+
+// Service workers cannot use <video>/<canvas>, so the SW fetches the MP4 bytes and
+// the content script encodes them to an animated GIF here.
+function convertGifFromBuffer({ buffer, filename, readableFilename }) {
+    let blobUrl
+    try {
+        const blob = new Blob([buffer], { type: 'video/mp4' })
+        blobUrl = URL.createObjectURL(blob)
+        const worker = createGifWorker(filename, readableFilename, blobUrl)
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        const video = document.createElement('video')
+
+        video.src = blobUrl
+        video.muted = true
+        video.playsInline = true
+        video.playbackRate = PLAY_SPEED_RATE
+        video.preload = 'auto'
+
+        video.onerror = () => {
+            failGifConversion(filename, 'video element failed to load')
+        }
+
+        video.addEventListener('canplaythrough', () => {
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+            captureGifVideo(filename, context, video, worker)
+        }, { once: true })
+    } catch (error) {
+        if (blobUrl) {
+            URL.revokeObjectURL(blobUrl)
+        }
+        failGifConversion(filename, error)
+    }
+}
+
+function createGifWorker(filename, readableFilename, blobUrl) {
+    const worker = new Worker(browser.runtime.getURL('gif_converter.js'))
+    gifWorkerSpace[filename] = { worker, blobUrl }
+
+    worker.onmessage = (event) => {
+        browser.runtime.sendMessage({
+            type: 'GIF_CONVERTED',
+            data: event.data,
+            filename,
+            readableFilename,
+        }).catch(() => {})
+
+        cleanupGifWorker(filename)
+    }
+
+    worker.onerror = (event) => {
+        failGifConversion(filename, event.message || 'worker error')
+    }
+
+    return worker
+}
+
+function failGifConversion(filename, error) {
+    cleanupGifWorker(filename)
+    browser.runtime.sendMessage({
+        type: 'GIF_CONVERT_FAILED',
+        error: String(error),
+    }).catch(() => {})
+}
+
+function cleanupGifWorker(filename) {
+    const entry = gifWorkerSpace[filename]
+    if (!entry) {
+        return
+    }
+    entry.worker.terminate()
+    if (entry.blobUrl) {
+        URL.revokeObjectURL(entry.blobUrl)
+    }
+    delete gifWorkerSpace[filename]
+}
+
+async function captureGifVideo(filename, context, video, worker) {
+    worker.postMessage({
+        delay: CAPTURE_INTERVAL * PLAY_SPEED_RATE,
+        w: video.videoWidth,
+        h: video.videoHeight,
+    })
+
+    try {
+        await video.play()
+        while (!video.ended) {
+            context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight)
+            const imageData = context.getImageData(0, 0, video.videoWidth, video.videoHeight)
+            worker.postMessage({ frame: imageData })
+            await sleep(CAPTURE_INTERVAL)
+        }
+        worker.postMessage({})
+    } catch (error) {
+        failGifConversion(filename, error)
+    }
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 function toggleReactProgressPopup(request) {
@@ -288,15 +475,6 @@ function isVideoExist(target) {
 function isVideoDownloadButton(target) {
     return $(target).find('button.tva_js_download')[0]
 }
-
-browser.runtime.onMessage.addListener((message) => {
-    if (message.type === 'UPDATE_SESSION_DATA') {
-
-        const currentData = JSON.parse(sessionStorage.getItem('MediaGrab') || '[]');
-        const mergedArray = [...currentData, ...message.data];
-        sessionStorage.setItem('MediaGrab', JSON.stringify(mergedArray))
-    }
-});
 
 window.addEventListener('pageshow', function (event) {
     sessionStorage.removeItem('MediaGrab');

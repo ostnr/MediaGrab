@@ -7,6 +7,7 @@ function restoreOptions() {
 		isVideoSaveAsMP4: true,
 		isVideoSaveAsTS: true,
 		hideViewCount: false,
+		downloadQuotedMedia: false,
 	}).then(onGot, onError)
 }
 
@@ -16,6 +17,7 @@ function onGot(items) {
 	document.getElementById('gifasgif').checked = items.isConvertGIF
 	document.getElementById('gifasmp4').checked = items.isSaveMP4
 	document.getElementById('view_count').checked = items.hideViewCount
+	document.getElementById('quoted_media').checked = items.downloadQuotedMedia
 }
 
 function onError(error) {
@@ -36,6 +38,7 @@ function saveOptions() {
 	var convertGIF = document.getElementById('gifasgif').checked
 	var saveMP4 = document.getElementById('gifasmp4').checked
 	var hideViewCount = document.getElementById('view_count').checked
+	var downloadQuotedMedia = document.getElementById('quoted_media').checked
 
 	browser.storage.sync.set({
 		spcificPathName: specific,
@@ -43,6 +46,7 @@ function saveOptions() {
 		isConvertGIF: convertGIF,
 		isSaveMP4: saveMP4,
 		hideViewCount: hideViewCount,
+		downloadQuotedMedia: downloadQuotedMedia,
 	}).then(setItem, onError)
 }
 
@@ -51,4 +55,5 @@ document.getElementById('readable').addEventListener("change", saveOptions)
 document.getElementById('gifasgif').addEventListener("change", saveOptions)
 document.getElementById('gifasmp4').addEventListener("change", saveOptions)
 document.getElementById('view_count').addEventListener("change", saveOptions)
+document.getElementById('quoted_media').addEventListener("change", saveOptions)
 document.addEventListener('DOMContentLoaded', restoreOptions)

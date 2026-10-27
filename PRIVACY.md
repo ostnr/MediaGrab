@@ -1,6 +1,6 @@
 # Privacy Policy — MediaGrab
 
-_Last updated: 2026-06-19_
+_Last updated: 2026-07-20_
 
 MediaGrab is a browser extension that adds a download button to posts on
 X (twitter.com / x.com) so you can save their photos, videos and GIFs.

@@ -164,7 +164,13 @@ function downloadImage({ url, readableFilename }) {
         }
 
         if (filenameMatches.length) {
-            options.filename = `${filename}${format}`
+            // `filename` from the media-url match already carries the extension
+            // (e.g. "HLHEfGGWIAAmkec.jpg"), so blindly appending `format` produced
+            // a doubled ".jpg.jpg". Strip a matching trailing extension first.
+            const base = filename.endsWith(format)
+                ? filename.slice(0, -format.length)
+                : filename
+            options.filename = `${base}${format}`
         }
 
         browser.downloads.download(options)

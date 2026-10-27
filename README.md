@@ -9,25 +9,41 @@ by Flkalas, which is no longer actively developed. Licensed under MIT (see
 
 ## Browser support
 
-- **Firefox** — developed and tested here. This is the supported target.
-- **Chrome / Chromium** — **not tested yet.** The extension is Manifest V2, which
-  Chrome no longer accepts for new submissions, so a Chrome build would likely need
-  a Manifest V3 migration in addition to testing. If someone wants it on Chrome,
-  contributions / issues are welcome — otherwise it stays Firefox-only for now.
+- **Chrome / Chromium** — Manifest V3, ready for Chrome Web Store upload.
+- **Firefox** — Manifest V3 (Firefox 121+), same package as Chrome.
 
-## Install (Firefox, temporary / development)
+## Install (development)
 
-1. Open `about:debugging` in Firefox.
-2. Click **This Firefox** → **Load Temporary Add-on…**
-3. Select `src/manifest.json` from this repo.
+### Chrome
 
-The add-on stays loaded until Firefox is closed. For a permanent install, build and
-sign an XPI with [`web-ext`](https://extensionworkshop.com/documentation/develop/web-ext-command-reference/).
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select the `src/` folder from this repo.
+
+### Firefox
+
+1. Open `about:debugging` → **This Firefox**.
+2. Click **Load Temporary Add-on…**.
+3. Select `src/manifest.json`.
+
+Reload the extension after code changes, then hard-reload any open x.com tab.
+
+## Package for store upload
+
+The store ZIP must have `manifest.json` at the archive root (contents of `src/`, not the folder itself):
+
+```powershell
+Compress-Archive -Path src\* -DestinationPath mediagrab-4.1.0.zip -Force
+```
+
+- **Chrome Web Store**: upload that ZIP; listing copy is in `STORE_LISTING.md`.
+- **Firefox AMO**: same ZIP (or `web-ext build --source-dir ./src`).
 
 ## Privacy
 
 MediaGrab parses the X (Twitter) web page locally in your browser. It does not collect
 any user data and has no server or database — everything runs on your machine.
+See [PRIVACY.md](PRIVACY.md).
 
 ## Credits
 

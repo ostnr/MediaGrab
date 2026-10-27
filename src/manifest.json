@@ -1,28 +1,32 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "MediaGrab",
   "description": "Download photos, videos and GIFs from X (Twitter) posts.",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "author": "ostnr",
   "homepage_url": "https://github.com/ostnr/MediaGrab",
+  "minimum_chrome_version": "121",
   "browser_specific_settings": {
     "gecko": {
       "id": "mediagrab@ostnr.github.io",
+      "strict_min_version": "121.0",
       "data_collection_permissions": {
         "required": ["none"]
       }
     }
   },
   "permissions": [
+    "storage",
+    "downloads",
+    "tabs"
+  ],
+  "host_permissions": [
     "*://x.com/*",
     "*://*.x.com/*",
     "*://twitter.com/*",
     "*://*.twitter.com/*",
     "*://*.twimg.com/*",
-    "*://video.twimg.com/*",
-    "storage",
-    "downloads",
-    "tabs"
+    "*://video.twimg.com/*"
   ],
   "icons": {
     "16": "icon_bitty.png",
@@ -37,9 +41,6 @@
         "*://mobile.twitter.com/*",
         "*://x.com/*",
         "*://*.x.com/*"
-      ],
-      "css": [
-        "twitter_video_assist_client.css"
       ],
       "js": [
         "content.js"
@@ -59,25 +60,34 @@
       "js": [
         "browser-polyfill.min.js",
         "jquery-3.3.1.min.js",
-        "inject.js",
-        "twitter_video_assist_client.js",
-        "twitter_video_downloader.js"
+        "twitter_video_assist_client.js"
       ]
     }
   ],
   "web_accessible_resources": [
-    "inject.js",
-    "twitter_video_downloader.js"
+    {
+      "resources": [
+        "inject.js",
+        "twitter_video_downloader.js",
+        "gif_converter.js",
+        "jsgif/*"
+      ],
+      "matches": [
+        "*://twitter.com/*",
+        "*://mobile.twitter.com/*",
+        "*://x.com/*",
+        "*://*.x.com/*"
+      ]
+    }
   ],
   "options_ui": {
     "page": "options.html"
   },
   "background": {
+    "service_worker": "background.js",
     "scripts": [
       "browser-polyfill.min.js",
-      "inject.js",
       "twitter_video_downloader.js",
-      "content.js",
       "twitter_video_assist_server.js"
     ]
   }
