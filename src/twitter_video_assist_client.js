@@ -39,6 +39,16 @@ const PLAY_SPEED_RATE = 2.0
 
 // Active GIF encoders keyed by source filename (content-script side; SW has no DOM).
 let gifWorkerSpace = {}
+let gifWorkerUrl
+
+// Load order matters: gif_converter.js needs the jsgif globals.
+const GIF_WORKER_SOURCES = [
+    'jsgif/b64.js',
+    'jsgif/LZWEncoder.js',
+    'jsgif/NeuQuant.js',
+    'jsgif/GIFEncoder.js',
+    'gif_converter.js',
+]
 
 let hideViewCount = false
 browser.runtime.onMessage.addListener(handleBackgroundMessage)
@@ -328,12 +338,13 @@ function handleBackgroundMessage(request) {
 
 // Service workers cannot use <video>/<canvas>, so the SW fetches the MP4 bytes and
 // the content script encodes them to an animated GIF here.
-function convertGifFromBuffer({ buffer, filename, readableFilename }) {
+async function convertGifFromBuffer({ buffer, filename, readableFilename, url }) {
+    const job = { filename, readableFilename, url, failed: false }
     let blobUrl
     try {
         const blob = new Blob([buffer], { type: 'video/mp4' })
         blobUrl = URL.createObjectURL(blob)
-        const worker = createGifWorker(filename, readableFilename, blobUrl)
+        const worker = await createGifWorker(job, blobUrl)
         const canvas = document.createElement('canvas')
         const context = canvas.getContext('2d')
         const video = document.createElement('video')
@@ -345,49 +356,71 @@ function convertGifFromBuffer({ buffer, filename, readableFilename }) {
         video.preload = 'auto'
 
         video.onerror = () => {
-            failGifConversion(filename, 'video element failed to load')
+            failGifConversion(job, 'video element failed to load')
         }
 
         video.addEventListener('canplaythrough', () => {
             canvas.width = video.videoWidth
             canvas.height = video.videoHeight
-            captureGifVideo(filename, context, video, worker)
+            captureGifVideo(job, context, video, worker)
         }, { once: true })
     } catch (error) {
         if (blobUrl) {
             URL.revokeObjectURL(blobUrl)
         }
-        failGifConversion(filename, error)
+        failGifConversion(job, error)
     }
 }
 
-function createGifWorker(filename, readableFilename, blobUrl) {
-    const worker = new Worker(browser.runtime.getURL('gif_converter.js'))
-    gifWorkerSpace[filename] = { worker, blobUrl }
+// X's CSP is `worker-src 'self' blob: ...`, which applies to workers started from a
+// content script and blocks extension URLs. A blob: worker is allowed, but it cannot
+// importScripts relative paths, so all encoder sources go into a single blob.
+async function getGifWorkerUrl() {
+    if (!gifWorkerUrl) {
+        const sources = await Promise.all(GIF_WORKER_SOURCES.map(async (file) => {
+            const response = await fetch(browser.runtime.getURL(file))
+            return response.text()
+        }))
+        gifWorkerUrl = URL.createObjectURL(new Blob([sources.join('\n')], { type: 'text/javascript' }))
+    }
+    return gifWorkerUrl
+}
+
+async function createGifWorker(job, blobUrl) {
+    const worker = new Worker(await getGifWorkerUrl())
+    gifWorkerSpace[job.filename] = { worker, blobUrl }
 
     worker.onmessage = (event) => {
         browser.runtime.sendMessage({
             type: 'GIF_CONVERTED',
             data: event.data,
-            filename,
-            readableFilename,
+            filename: job.filename,
+            readableFilename: job.readableFilename,
         }).catch(() => {})
 
-        cleanupGifWorker(filename)
+        cleanupGifWorker(job.filename)
     }
 
     worker.onerror = (event) => {
-        failGifConversion(filename, event.message || 'worker error')
+        failGifConversion(job, event.message || 'worker error')
     }
 
     return worker
 }
 
-function failGifConversion(filename, error) {
-    cleanupGifWorker(filename)
+function failGifConversion(job, error) {
+    // The worker and the video can both report an error for the same job.
+    if (job.failed) {
+        return
+    }
+    job.failed = true
+
+    cleanupGifWorker(job.filename)
     browser.runtime.sendMessage({
         type: 'GIF_CONVERT_FAILED',
         error: String(error),
+        url: job.url,
+        readableFilename: job.readableFilename,
     }).catch(() => {})
 }
 
@@ -403,7 +436,7 @@ function cleanupGifWorker(filename) {
     delete gifWorkerSpace[filename]
 }
 
-async function captureGifVideo(filename, context, video, worker) {
+async function captureGifVideo(job, context, video, worker) {
     worker.postMessage({
         delay: CAPTURE_INTERVAL * PLAY_SPEED_RATE,
         w: video.videoWidth,
@@ -412,7 +445,8 @@ async function captureGifVideo(filename, context, video, worker) {
 
     try {
         await video.play()
-        while (!video.ended) {
+        // A video that errors mid-playback never reaches `ended`, so also stop on failure.
+        while (!video.ended && !job.failed) {
             context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight)
             const imageData = context.getImageData(0, 0, video.videoWidth, video.videoHeight)
             worker.postMessage({ frame: imageData })
@@ -420,7 +454,7 @@ async function captureGifVideo(filename, context, video, worker) {
         }
         worker.postMessage({})
     } catch (error) {
-        failGifConversion(filename, error)
+        failGifConversion(job, error)
     }
 }
 

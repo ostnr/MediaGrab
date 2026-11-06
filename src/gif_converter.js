@@ -1,5 +1,5 @@
-importScripts('jsgif/b64.js', 'jsgif/LZWEncoder.js', 'jsgif/NeuQuant.js', 'jsgif/GIFEncoder.js');
-
+// Runs as a blob: worker, concatenated after the jsgif/ sources (see getGifWorkerUrl in
+// twitter_video_assist_client.js), so there is no importScripts here.
 var encoder = new GIFEncoder();
 
 self.addEventListener('message', function (e) {

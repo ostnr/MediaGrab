@@ -36,6 +36,7 @@ function processRequest(request, sender) {
 
         case 'GIF_CONVERT_FAILED':
             console.warn('[MediaGrab] GIF conversion failed:', request.error)
+            saveSourceMp4AfterFailure(request)
             finishGifConversion()
             break
     }
@@ -75,10 +76,22 @@ function processGifVideo({ url, readableFilename }, sender) {
                 buffer,
                 filename,
                 readableFilename,
+                url,
             })
         } catch (error) {
             console.warn('[MediaGrab] GIF convert setup failed:', error)
+            saveSourceMp4AfterFailure({ url, readableFilename })
             finishGifConversion()
+        }
+    })
+}
+
+// With the MP4 option off the GIF is the only output, so a failed conversion would
+// end with no file and no visible error. Hand over the source clip instead.
+function saveSourceMp4AfterFailure({ url, readableFilename }) {
+    browser.storage.sync.get({ isSaveMP4: true }).then((items) => {
+        if (!items.isSaveMP4) {
+            downloadMp4Video({ url, readableFilename })
         }
     })
 }
