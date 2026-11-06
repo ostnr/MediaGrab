@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MediaGrab",
   "description": "Download photos, videos and GIFs from X (Twitter) posts.",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "author": "ostnr",
   "homepage_url": "https://github.com/ostnr/MediaGrab",
   "minimum_chrome_version": "121",

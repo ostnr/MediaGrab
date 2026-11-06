@@ -33,7 +33,7 @@ Reload the extension after code changes, then hard-reload any open x.com tab.
 The store ZIP must have `manifest.json` at the archive root (contents of `src/`, not the folder itself):
 
 ```powershell
-Compress-Archive -Path src\* -DestinationPath mediagrab-4.1.0.zip -Force
+Compress-Archive -Path src\* -DestinationPath mediagrab-4.1.1.zip -Force
 ```
 
 - **Chrome Web Store**: upload that ZIP; listing copy is in `STORE_LISTING.md`.
